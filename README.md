@@ -1,6 +1,6 @@
 # 定制旅游助手 (Custom Travel Assistant)
 
-这是一个基于 **豆包 (Doubao) 大模型** 驱动的全栈旅游规划应用。它能够根据用户的目的地、旅行目的、天数和预算，自动生成详细的旅游攻略，并提供实时的 AI 旅游助手服务。
+这是一个基于 **豆包 (Doubao) / DeepSeek** 大模型驱动的全栈旅游规划应用。它能够根据用户的目的地、旅行目的、天数和预算，自动生成详细的旅游攻略，并提供实时的 AI 旅游助手服务。
 
 ## ✨ 功能特性
 
@@ -18,7 +18,7 @@
 - **图标**: Lucide React
 - **后端**: Node.js, Express
 - **AI SDK**: OpenAI SDK (配置为火山引擎 Ark 接口)
-- **大模型**: 豆包 (Doubao) - 火山引擎 Ark 平台
+- **大模型**: 豆包 (Doubao) / DeepSeek - 火山引擎 Ark 平台
 
 ## 🛠️ 快速开始
 
@@ -31,7 +31,7 @@ DOUBAO_API_KEY=你的火山引擎API密钥
 DOUBAO_MODEL_ID=你的推理终端ID (Endpoint ID)
 ```
 
-> **注意**：本项目默认使用豆包 **Coding Plan (编程计划)** 套餐，接口地址已配置为 `https://ark.cn-beijing.volces.com/api/coding/v3`。
+> **注意**：本项目目前配置为使用火山引擎 Ark 标准接口地址 `https://ark.cn-beijing.volces.com/api/v3`。
 
 ### 2. 安装依赖
 

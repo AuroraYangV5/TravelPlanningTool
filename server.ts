@@ -9,10 +9,10 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Initialize OpenAI client for Doubao (Ark) - Coding Plan
+// Initialize OpenAI client for Doubao (Ark)
 const client = new OpenAI({
   apiKey: process.env.DOUBAO_API_KEY || "dummy",
-  baseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
+  baseURL: process.env.DOUBAO_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3",
 });
 
 app.use(express.json());
