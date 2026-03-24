@@ -26,9 +26,31 @@ import {
   Map as MapIcon,
   Hotel,
   Bus,
-  AlertCircle
+  AlertCircle,
+  Save,
+  History,
+  Trash2,
+  ZoomIn,
+  ZoomOut,
+  Maximize
 } from 'lucide-react';
 import Markdown from 'react-markdown';
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import L from 'leaflet';
+
+// Fix Leaflet marker icon issue
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIcon2x,
+  shadowUrl: markerShadow,
+});
 
 interface ItineraryNode {
   day: number;
@@ -46,7 +68,7 @@ interface ItineraryData {
   accommodation: { name: string; area: string; price: string };
   nodes: ItineraryNode[];
   totalBudget: number;
-  routePoints: { x: number; y: number; label: string }[];
+  routePoints: { lat: number; lng: number; label: string }[];
 }
 
 export default function App() {
@@ -57,8 +79,35 @@ export default function App() {
   const [budget, setBudget] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [itinerary, setItinerary] = useState<ItineraryData | null>(null);
+  const [mapView, setMapView] = useState<'sketch' | 'real'>('sketch');
   const [error, setError] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [savedItineraries, setSavedItineraries] = useState<ItineraryData[]>([]);
+  const [showSaved, setShowSaved] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('saved_itineraries');
+    if (saved) {
+      try {
+        setSavedItineraries(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to parse saved itineraries", e);
+      }
+    }
+  }, []);
+
+  const saveCurrentItinerary = () => {
+    if (!itinerary) return;
+    const newSaved = [itinerary, ...savedItineraries.filter(i => i.title !== itinerary.title)];
+    setSavedItineraries(newSaved);
+    localStorage.setItem('saved_itineraries', JSON.stringify(newSaved));
+  };
+
+  const deleteSavedItinerary = (title: string) => {
+    const newSaved = savedItineraries.filter(i => i.title !== title);
+    setSavedItineraries(newSaved);
+    localStorage.setItem('saved_itineraries', JSON.stringify(newSaved));
+  };
   
   // AI Chat State
   const [chatInput, setChatInput] = useState('');
@@ -88,14 +137,19 @@ export default function App() {
         天数: ${days}天
         预算范围: ${budget || '适中'}
         
+        特别要求：
+        1. 如果目的是“特种兵旅行”，请安排极高密度的行程，每天打卡更多的景点（至少5-6个时间点），并优化路线。
+        2. 必须考虑景点间的地理距离，将地理位置接近的景区安排在同一天或相邻时间段，以减少交通时间，最大化游玩效率。
+        3. 路线必须逻辑连贯，不走回头路。
+        
         请返回JSON格式的数据，包含以下字段：
         - title: 攻略标题
         - accommodation: { name: 酒店名称, area: 所在区域, price: 大概价格 }
         - nodes: 数组，每个对象包含 { day: 天数, time: 时间点, activity: 活动名称, location: 地点, transport: 交通工具, dining: { restaurant: 餐厅名, dishes: [推荐菜1, 推荐菜2] }, cost: 预估开销(数字), description: 简单描述 }
         - totalBudget: 总预估开销
-        - routePoints: 数组，包含 { x: 0-100之间的坐标, y: 0-100之间的坐标, label: 地点名称 } 用于绘制手绘路线图。
+        - routePoints: 数组，包含 { lat: 真实的纬度(数字), lng: 真实的经度(数字), label: 地点名称 } 用于在地图上绘制路线。请务必提供真实的地理坐标。
         
-        注意：请保持描述简洁有力，避免生成过长的文本导致数据截断。对于每一天，提供3-4个关键时间点的活动即可。
+        注意：请保持描述简洁有力，避免生成过长的文本导致数据截断。对于每一天，根据目的提供合适数量的活动（特种兵旅行应提供更多）。
       `;
 
       const response = await fetch('/api/generate-itinerary', {
@@ -160,41 +214,191 @@ export default function App() {
     }
   };
 
-  const renderHandDrawnMap = () => {
-    if (!itinerary?.routePoints) return null;
+  const MapBoundsAdjuster = ({ points }: { points: { lat: number; lng: number }[] }) => {
+    const map = useMap();
+    useEffect(() => {
+      if (points && points.length > 0) {
+        const bounds = L.latLngBounds(points.map(p => [p.lat, p.lng]));
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }, [points, map]);
+    return null;
+  };
+
+  const renderSketchMap = () => {
+    if (!itinerary?.routePoints || itinerary.routePoints.length === 0) return null;
     const points = itinerary.routePoints;
     
+    // Normalize points to 0-100 range for SVG
+    const lats = points.map(p => p.lat);
+    const lngs = points.map(p => p.lng);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    
+    const latDiff = maxLat - minLat || 1;
+    const lngDiff = maxLng - minLng || 1;
+    
+    const normalizedPoints = points.map((p, i) => ({
+      x: 20 + ((p.lng - minLng) / lngDiff) * 160,
+      y: 100 - ((p.lat - minLat) / latDiff) * 80, // Invert Y for SVG
+      label: p.label,
+      offsetDir: i % 2 === 0 ? -1 : 1 // Alternate above/below to reduce overlap
+    }));
+
     return (
-      <div className="relative w-full aspect-video bg-stone-100 rounded-3xl border-2 border-dashed border-stone-300 overflow-hidden p-8">
-        <div className="absolute top-4 left-4 font-hand text-stone-400 text-sm">手绘路线草图</div>
-        <svg className="w-full h-full" viewBox="0 0 100 100">
-          {/* Draw Path */}
-          <motion.path
-            d={`M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`}
-            fill="none"
-            stroke="#059669"
-            strokeWidth="0.5"
-            strokeDasharray="2,2"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 2, ease: "easeInOut" }}
+      <div className="relative w-full aspect-video bg-[#F9F7F2] rounded-3xl border-2 border-stone-200 overflow-hidden shadow-sm group">
+        <TransformWrapper
+          initialScale={1}
+          initialPositionX={0}
+          initialPositionY={0}
+          minScale={0.5}
+          maxScale={20}
+        >
+          {(context: any) => {
+            const { zoomIn, zoomOut, resetTransform, state } = context;
+            return (
+              <>
+                <div className="absolute top-4 left-6 z-10 font-hand text-stone-400 text-sm flex items-center gap-2 pointer-events-none">
+                  <Sparkles size={14} /> 路线手绘草图 (支持缩放和平移)
+                </div>
+                
+                <div className="absolute top-4 right-6 z-10 flex gap-2">
+                  <button onClick={() => zoomIn()} className="p-2 bg-white/80 backdrop-blur-sm rounded-lg border border-stone-200 text-stone-600 hover:bg-emerald-600 hover:text-white transition-all shadow-sm">
+                    <ZoomIn size={16} />
+                  </button>
+                  <button onClick={() => zoomOut()} className="p-2 bg-white/80 backdrop-blur-sm rounded-lg border border-stone-200 text-stone-600 hover:bg-emerald-600 hover:text-white transition-all shadow-sm">
+                    <ZoomOut size={16} />
+                  </button>
+                  <button onClick={() => resetTransform()} className="p-2 bg-white/80 backdrop-blur-sm rounded-lg border border-stone-200 text-stone-600 hover:bg-emerald-600 hover:text-white transition-all shadow-sm">
+                    <Maximize size={16} />
+                  </button>
+                </div>
+
+                <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }} contentStyle={{ width: "100%", height: "100%" }}>
+                  <div className="w-full h-full p-12">
+                    {/* Paper texture effect */}
+                    <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/paper-fibers.png')]" />
+                    
+                    <svg className="w-full h-full" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet">
+                      <defs>
+                        <filter id="handdrawn" x="-10%" y="-10%" width="120%" height="120%">
+                          <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="noise" />
+                          <feDisplacementMap in="SourceGraphic" in2="noise" scale="1" />
+                        </filter>
+                      </defs>
+                      
+                      {/* Path */}
+                      <motion.path
+                        d={`M ${normalizedPoints.map(p => `${p.x},${p.y}`).join(' L ')}`}
+                        fill="none"
+                        stroke="#10B981"
+                        strokeWidth={1.5 / state.scale}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeDasharray={`${4 / state.scale},${4 / state.scale}`}
+                        filter="url(#handdrawn)"
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: 1 }}
+                        transition={{ duration: 2, ease: "easeInOut" }}
+                      />
+                      
+                      {/* Points */}
+                      {normalizedPoints.map((p, i) => (
+                        <g key={i} className="filter drop-shadow-sm">
+                          <motion.circle 
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: i * 0.2 }}
+                            cx={p.x} cy={p.y} r={2.5 / state.scale} 
+                            fill="#065F46" 
+                          />
+                          <motion.text 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: i * 0.2 + 0.5 }}
+                            x={p.x} 
+                            y={p.y + (p.offsetDir * (6 / state.scale))} 
+                            fontSize={4.5 / state.scale} 
+                            className="font-hand fill-stone-800 font-bold"
+                            textAnchor="middle"
+                            style={{ 
+                              paintOrder: 'stroke',
+                              stroke: 'white',
+                              strokeWidth: `${1 / state.scale}px`,
+                              pointerEvents: 'none'
+                            }}
+                          >
+                            {p.label}
+                          </motion.text>
+                        </g>
+                      ))}
+                    </svg>
+                  </div>
+                </TransformComponent>
+                
+                <div 
+                  onClick={() => setMapView('real')}
+                  className="absolute bottom-4 right-6 z-10 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full border border-stone-200 text-[10px] font-bold text-stone-500 flex items-center gap-1.5 shadow-sm cursor-pointer hover:bg-emerald-600 hover:text-white transition-all"
+                >
+                  <MapIcon size={12} /> 切换至卫星/街道地图
+                </div>
+              </>
+            );
+          }}
+        </TransformWrapper>
+      </div>
+    );
+  };
+
+  const renderRealMap = () => {
+    if (!itinerary?.routePoints || itinerary.routePoints.length === 0) return null;
+    const points = itinerary.routePoints;
+    const polylinePositions = points.map(p => [p.lat, p.lng] as [number, number]);
+    
+    // Custom Marker Icon
+    const customIcon = L.divIcon({
+      className: 'custom-div-icon',
+      html: `<div class="w-8 h-8 bg-emerald-600 rounded-full border-4 border-white shadow-lg flex items-center justify-center text-white">
+               <div class="w-2 h-2 bg-white rounded-full"></div>
+             </div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
+    
+    return (
+      <div className="relative w-full aspect-video bg-stone-100 rounded-3xl border-2 border-stone-200 overflow-hidden shadow-inner z-0 group">
+        <MapContainer 
+          center={[points[0].lat, points[0].lng]} 
+          zoom={13} 
+          style={{ height: '100%', width: '100%' }}
+          scrollWheelZoom={false}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {/* Draw Points */}
           {points.map((p, i) => (
-            <g key={i}>
-              <circle cx={p.x} cy={p.y} r="1.5" fill="#059669" />
-              <text 
-                x={p.x} 
-                y={p.y - 3} 
-                fontSize="3" 
-                className="font-hand fill-stone-600"
-                textAnchor="middle"
-              >
-                {p.label}
-              </text>
-            </g>
+            <Marker key={i} position={[p.lat, p.lng]} icon={customIcon}>
+              <Popup>
+                <div className="font-sans p-1">
+                  <p className="font-bold text-emerald-700 text-sm">{p.label}</p>
+                </div>
+              </Popup>
+            </Marker>
           ))}
-        </svg>
+          <Polyline positions={polylinePositions} color="#059669" weight={4} opacity={0.6} dashArray="10, 10" />
+          <MapBoundsAdjuster points={points} />
+        </MapContainer>
+        
+        <button 
+          onClick={() => setMapView('sketch')}
+          className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl border border-stone-200 text-xs font-bold text-stone-600 flex items-center gap-2 shadow-lg hover:bg-emerald-600 hover:text-white transition-all"
+        >
+          <Sparkles size={14} /> 返回手绘视图
+        </button>
       </div>
     );
   };
@@ -208,7 +412,7 @@ export default function App() {
             <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
               <Compass size={24} />
             </div>
-            <span className="font-serif text-xl font-bold text-emerald-900 tracking-tight">定制旅游助手</span>
+            <span className="font-serif text-xl font-bold text-emerald-900 tracking-tight">你的旅游助手</span>
           </div>
         </div>
 
@@ -225,17 +429,37 @@ export default function App() {
             ].map((s) => (
               <div
                 key={s.id}
-                className={`flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-xl transition-all duration-200 whitespace-nowrap flex-1 md:flex-none ${
+                onClick={() => step > s.id && setStep(s.id)}
+                className={`flex items-center gap-1.5 md:gap-3 px-2 md:px-4 py-1.5 md:py-3 rounded-xl transition-all duration-200 whitespace-nowrap flex-1 md:flex-none cursor-pointer ${
                   step === s.id 
                     ? 'bg-emerald-50 text-emerald-700 font-medium' 
-                    : step > s.id ? 'text-emerald-600 opacity-60' : 'text-stone-300'
+                    : step > s.id ? 'text-emerald-600 opacity-60 hover:bg-emerald-50/50' : 'text-stone-300'
                 }`}
               >
-                <s.icon size={18} className="shrink-0" />
-                <span className="text-xs md:text-sm lg:text-base">{s.label}</span>
+                <s.icon size={14} className="shrink-0 md:size-[18px]" />
+                <span className="text-[10px] md:text-sm lg:text-base">{s.label}</span>
                 {step > s.id && <ChevronRight size={14} className="ml-auto hidden lg:block" />}
               </div>
             ))}
+            
+            <div className="hidden md:block h-px bg-stone-100 my-2 mx-4" />
+            
+            <button
+              onClick={() => setShowSaved(!showSaved)}
+              className={`flex items-center gap-1.5 md:gap-3 px-2 md:px-4 py-1.5 md:py-3 rounded-xl transition-all duration-200 whitespace-nowrap flex-1 md:flex-none ${
+                showSaved 
+                  ? 'bg-stone-900 text-white' 
+                  : 'text-stone-500 hover:bg-stone-100'
+              }`}
+            >
+              <History size={14} className="shrink-0 md:size-[18px]" />
+              <span className="text-[10px] md:text-sm lg:text-base">历史攻略</span>
+              {savedItineraries.length > 0 && (
+                <span className="ml-auto bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                  {savedItineraries.length}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -253,7 +477,82 @@ export default function App() {
       <main className="flex-1 overflow-y-auto h-screen relative">
         <div className="max-w-4xl mx-auto p-4 md:p-12 min-h-full flex flex-col">
           <AnimatePresence mode="wait">
-            {/* Step 1: Destination */}
+            {showSaved ? (
+              <motion.div
+                key="saved"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="flex-1 flex flex-col w-full"
+              >
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-3xl font-serif font-bold text-stone-900">我的<span className="text-emerald-600 italic">收藏</span></h2>
+                  <button 
+                    onClick={() => setShowSaved(false)}
+                    className="text-stone-400 hover:text-stone-600 flex items-center gap-1 text-sm"
+                  >
+                    返回规划 <X size={16} />
+                  </button>
+                </div>
+                
+                {savedItineraries.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center py-20 bg-white rounded-3xl border-2 border-dashed border-stone-200">
+                    <History size={48} className="text-stone-200 mb-4" />
+                    <p className="text-stone-400">暂无收藏的攻略</p>
+                    <button 
+                      onClick={() => setShowSaved(false)}
+                      className="mt-4 text-emerald-600 font-bold hover:underline"
+                    >
+                      去规划一个吧
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {savedItineraries.map((saved, idx) => (
+                      <div 
+                        key={idx}
+                        className="bg-white p-6 rounded-2xl border-2 border-stone-100 shadow-sm hover:border-emerald-500 transition-all group relative"
+                      >
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="text-xl font-serif font-bold text-stone-800 mb-1">{saved.title}</h3>
+                            <div className="flex items-center gap-4 text-xs text-stone-400">
+                              <span className="flex items-center gap-1"><MapPin size={12} /> {saved.accommodation.area}</span>
+                              <span className="flex items-center gap-1"><Calendar size={12} /> {saved.nodes.length / 3}天行程</span>
+                              <span className="flex items-center gap-1"><Wallet size={12} /> 预算 ¥{saved.totalBudget}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => { setItinerary(saved); setStep(5); setShowSaved(false); }}
+                              className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-all"
+                            >
+                              查看详情
+                            </button>
+                            <button 
+                              onClick={() => deleteSavedItinerary(saved.title)}
+                              className="p-2 text-stone-300 hover:text-red-500 transition-all"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 overflow-hidden">
+                          {(saved.routePoints || []).slice(0, 4).map((p, i) => (
+                            <span key={i} className="text-[10px] bg-stone-50 px-2 py-1 rounded-md text-stone-500 whitespace-nowrap">
+                              {p.label}
+                            </span>
+                          ))}
+                          {saved.routePoints.length > 4 && <span className="text-[10px] text-stone-300">...</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              <>
+                {/* Step 1: Destination */}
             {step === 1 && (
               <motion.div
                 key="step1"
@@ -451,6 +750,10 @@ export default function App() {
                     <div className="text-center">
                       <h3 className="text-2xl font-serif font-bold text-stone-800">正在为你定制专属攻略...</h3>
                       <p className="text-stone-500 mt-2">AI 正在规划路线、筛选酒店和寻找地道美食</p>
+                      <div className="mt-4 flex flex-col gap-1 text-[10px] text-stone-400 uppercase tracking-widest">
+                        <span>正在优化地理位置分布...</span>
+                        <span>正在计算最佳打卡顺序...</span>
+                      </div>
                     </div>
                   </div>
                 ) : error ? (
@@ -481,20 +784,32 @@ export default function App() {
                   <div className="space-y-12">
                     <header className="relative">
                       <div className="absolute -top-12 -left-12 w-64 h-64 bg-emerald-100/50 rounded-full blur-3xl -z-10" />
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase tracking-widest">
-                          定制攻略已生成
-                        </span>
-                        <button 
-                          onClick={() => setStep(1)}
-                          className="text-stone-400 hover:text-emerald-600 flex items-center gap-1 text-xs font-medium"
-                        >
-                          <RefreshCw size={14} /> 重新规划
-                        </button>
+                      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
+                        <div>
+                          <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase tracking-widest block w-fit mb-4">
+                            定制攻略已生成
+                          </span>
+                          <h1 className="text-5xl font-serif font-bold text-stone-900 leading-tight">
+                            {itinerary.title}
+                          </h1>
+                        </div>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={saveCurrentItinerary}
+                            className="flex items-center gap-2 bg-stone-900 text-white px-6 py-3 rounded-2xl font-bold hover:bg-stone-800 transition-all shadow-lg shadow-stone-200"
+                          >
+                            <Save size={18} />
+                            {savedItineraries.some(i => i.title === itinerary.title) ? '已保存' : '保存攻略'}
+                          </button>
+                          <button 
+                            onClick={() => setStep(1)}
+                            className="flex items-center gap-2 bg-white text-stone-600 border-2 border-stone-100 px-6 py-3 rounded-2xl font-bold hover:bg-stone-50 transition-all"
+                          >
+                            <RefreshCw size={18} />
+                            重新规划
+                          </button>
+                        </div>
                       </div>
-                      <h1 className="text-5xl font-serif font-bold text-stone-900 leading-tight">
-                        {itinerary.title}
-                      </h1>
                       <div className="mt-6 flex flex-wrap gap-4">
                         <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-stone-100 shadow-sm">
                           <MapPin size={16} className="text-emerald-600" />
@@ -517,7 +832,7 @@ export default function App() {
                         <MapIcon className="text-emerald-600" size={24} />
                         <h2 className="text-2xl font-serif font-bold">路线地图</h2>
                       </div>
-                      {renderHandDrawnMap()}
+                      {mapView === 'sketch' ? renderSketchMap() : renderRealMap()}
                     </section>
 
                     {/* Accommodation Section */}
@@ -547,7 +862,7 @@ export default function App() {
                       </div>
                       
                       <div className="relative space-y-12 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-0.5 before:bg-stone-200">
-                        {itinerary.nodes.map((node, idx) => (
+                        {(itinerary.nodes || []).map((node, idx) => (
                           <div key={idx} className="relative pl-12">
                             <div className="absolute left-0 top-1 w-10 h-10 bg-white border-2 border-emerald-600 rounded-full flex items-center justify-center z-10 shadow-sm">
                               <span className="text-xs font-bold text-emerald-600">{node.day}</span>
@@ -570,9 +885,9 @@ export default function App() {
                                     <Utensils size={14} />
                                     <span className="text-xs font-bold uppercase tracking-wider">推荐餐饮</span>
                                   </div>
-                                  <div className="font-bold text-sm mb-1">{node.dining.restaurant}</div>
+                                  <div className="font-bold text-sm mb-1">{node.dining?.restaurant || '--'}</div>
                                   <div className="flex flex-wrap gap-1">
-                                    {node.dining.dishes.map(d => (
+                                    {(node.dining?.dishes || []).map(d => (
                                       <span key={d} className="text-[10px] bg-white px-2 py-0.5 rounded-md text-stone-500 border border-stone-100">{d}</span>
                                     ))}
                                   </div>
@@ -612,7 +927,9 @@ export default function App() {
                 )}
               </motion.div>
             )}
-          </AnimatePresence>
+          </>
+        )}
+      </AnimatePresence>
         </div>
       </main>
 
@@ -636,7 +953,7 @@ export default function App() {
             </div>
           )}
           
-          {chatHistory.map((msg, idx) => (
+          { (chatHistory || []).map((msg, idx) => (
             <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] p-4 rounded-2xl text-sm ${
                 msg.role === 'user' 
@@ -725,7 +1042,7 @@ export default function App() {
                 </div>
               )}
               
-              {chatHistory.map((msg, idx) => (
+              { (chatHistory || []).map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] p-4 rounded-2xl text-sm ${
                     msg.role === 'user' 
