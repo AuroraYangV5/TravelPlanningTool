@@ -1,75 +1,49 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import OpenAI from "openai";
 import dotenv from "dotenv";
+import { generateItineraryDoubao, chatDoubao } from "./services/doubaoService";
+import { generateItineraryQwen, chatQwen } from "./services/qwenService";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
 
-// Initialize OpenAI client for Doubao (Ark)
-const client = new OpenAI({
-  apiKey: process.env.DOUBAO_API_KEY || "dummy",
-  baseURL: process.env.DOUBAO_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3",
-});
-
 app.use(express.json());
 
 // API routes
 app.post("/api/generate-itinerary", async (req, res) => {
-  const { prompt } = req.body;
-
-  if (!process.env.DOUBAO_API_KEY || !process.env.DOUBAO_MODEL_ID) {
-    return res.status(500).json({ error: "Doubao API key or Model ID not configured. Please set DOUBAO_API_KEY and DOUBAO_MODEL_ID in the secrets panel." });
-  }
+  const { prompt, modelType = "qwen" } = req.body;
 
   try {
-    const completion = await client.chat.completions.create({
-      model: process.env.DOUBAO_MODEL_ID,
-      messages: [
-        { role: "system", content: "你是一个专业的旅游规划师。请根据用户要求生成详细的旅游攻略。请务必返回合法的 JSON 格式数据。" },
-        { role: "user", content: prompt }
-      ],
-      response_format: { type: "json_object" }
-    });
-
-    const content = completion.choices[0].message.content;
+    let content;
+    if (modelType === "qwen") {
+      content = await generateItineraryQwen(prompt);
+    } else {
+      content = await generateItineraryDoubao(prompt);
+    }
     res.json({ text: content });
   } catch (error: any) {
-    console.error("Doubao API Error:", error);
-    res.status(500).json({ error: error.message || "Failed to generate itinerary with Doubao." });
+    console.error(`${modelType} API Error:`, error);
+    res.status(500).json({ error: error.message || `Failed to generate itinerary with ${modelType}.` });
   }
 });
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, systemInstruction } = req.body;
-
-  if (!process.env.DOUBAO_API_KEY || !process.env.DOUBAO_MODEL_ID) {
-    return res.status(500).json({ error: "Doubao API key or Model ID not configured. Please set DOUBAO_API_KEY and DOUBAO_MODEL_ID in the secrets panel." });
-  }
+  const { message, history, systemInstruction, modelType = "qwen" } = req.body;
 
   try {
-    const messages = [
-      { role: "system", content: systemInstruction || "你是一个专业的旅游助手。" },
-      ...history.map((h: any) => ({
-        role: h.role === "user" ? "user" : "assistant",
-        content: h.text
-      })),
-      { role: "user", content: message }
-    ];
-
-    const completion = await client.chat.completions.create({
-      model: process.env.DOUBAO_MODEL_ID,
-      messages: messages as any,
-    });
-
-    const content = completion.choices[0].message.content;
+    let content;
+    if (modelType === "qwen") {
+      content = await chatQwen(message, history, systemInstruction);
+    } else {
+      content = await chatDoubao(message, history, systemInstruction);
+    }
     res.json({ text: content });
   } catch (error: any) {
-    console.error("Doubao API Error:", error);
-    res.status(500).json({ error: error.message || "Failed to chat with Doubao." });
+    console.error(`${modelType} API Error:`, error);
+    res.status(500).json({ error: error.message || `Failed to chat with ${modelType}.` });
   }
 });
 
