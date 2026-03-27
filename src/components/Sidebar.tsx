@@ -5,7 +5,8 @@ import {
   Calendar,
   Wallet,
   Target,
-  History
+  History,
+  Settings
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -16,45 +17,86 @@ interface SidebarProps {
   savedCount: number;
   modelType: 'qwen' | 'doubao';
   setModelType: (type: 'qwen' | 'doubao') => void;
+  onOpenSettings: () => void;
 }
 
-export const Sidebar = ({ step, setStep, showSaved, setShowSaved, savedCount, modelType, setModelType }: SidebarProps) => {
+export const Sidebar = ({ 
+  step, 
+  setStep, 
+  showSaved, 
+  setShowSaved, 
+  savedCount, 
+  modelType, 
+  setModelType,
+  onOpenSettings
+}: SidebarProps) => {
   return (
     <nav className="w-full md:w-20 lg:w-64 bg-white border-b md:border-b-0 md:border-r border-stone-200 flex flex-col z-20 shrink-0">
-      <div className="p-4 md:p-6 flex items-center justify-between md:justify-start gap-3">
+      <div className="p-4 md:p-6 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
-            <Compass size={24} />
+          <div className="w-8 h-8 md:w-10 md:h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
+            <Compass size={20} className="md:size-6" />
           </div>
-          <span className="font-serif text-xl font-bold text-emerald-900 tracking-tight">你的旅游助手</span>
+          <span className="font-serif text-lg md:text-xl font-bold text-emerald-900 tracking-tight">你的旅游助手</span>
+        </div>
+
+        {/* Mobile Model Switcher */}
+        <div className="flex md:hidden items-center gap-2">
+          <div className="flex p-0.5 bg-stone-100 rounded-lg">
+            <button
+              onClick={() => setModelType('qwen')}
+              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${
+                modelType === 'qwen' ? 'bg-white text-emerald-600 shadow-sm' : 'text-stone-500'
+              }`}
+            >
+              千问
+            </button>
+            <button
+              onClick={() => setModelType('doubao')}
+              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${
+                modelType === 'doubao' ? 'bg-white text-emerald-600 shadow-sm' : 'text-stone-500'
+              }`}
+            >
+              豆包
+            </button>
+          </div>
+          <button 
+            onClick={onOpenSettings}
+            className="p-2 text-stone-400 hover:text-emerald-600 transition-colors"
+          >
+            <Settings size={20} />
+          </button>
         </div>
       </div>
 
       <div className="px-4 py-2 md:px-3 md:py-4 flex md:flex-col gap-2 overflow-x-auto no-scrollbar border-t md:border-t-0 border-stone-100">
-        <div className="hidden lg:block px-4 py-2 text-[10px] uppercase tracking-widest font-bold text-stone-400">
-          模型选择
-        </div>
-        <div className="flex gap-1 p-1 bg-stone-100 rounded-xl mx-2 mb-4">
-          <button
-            onClick={() => setModelType('qwen')}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              modelType === 'qwen' 
-                ? 'bg-white text-emerald-600 shadow-sm' 
-                : 'text-stone-500 hover:text-stone-700'
-            }`}
-          >
-            千问
-          </button>
-          <button
-            onClick={() => setModelType('doubao')}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-              modelType === 'doubao' 
-                ? 'bg-white text-emerald-600 shadow-sm' 
-                : 'text-stone-500 hover:text-stone-700'
-            }`}
-          >
-            豆包
-          </button>
+        {/* Desktop Model Switcher */}
+        <div className="hidden md:block">
+          <div className="hidden lg:block px-4 py-2 text-[10px] uppercase tracking-widest font-bold text-stone-400">
+            模型选择
+          </div>
+          <div className="flex gap-1 p-1 bg-stone-100 rounded-xl mx-2 mb-4">
+            <button
+              onClick={() => setModelType('qwen')}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                modelType === 'qwen' 
+                  ? 'bg-white text-emerald-600 shadow-sm' 
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              千问
+            </button>
+            <button
+              onClick={() => setModelType('doubao')}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                modelType === 'doubao' 
+                  ? 'bg-white text-emerald-600 shadow-sm' 
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              豆包
+            </button>
+          </div>
         </div>
 
         <div className="hidden lg:block px-4 py-2 text-[10px] uppercase tracking-widest font-bold text-stone-400">
@@ -99,6 +141,14 @@ export const Sidebar = ({ step, setStep, showSaved, setShowSaved, savedCount, mo
                 {savedCount}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={onOpenSettings}
+            className="flex items-center gap-1.5 md:gap-3 px-2 md:px-4 py-1.5 md:py-3 rounded-xl transition-all duration-200 whitespace-nowrap flex-1 md:flex-none text-stone-500 hover:bg-stone-100"
+          >
+            <Settings size={14} className="shrink-0 md:size-[18px]" />
+            <span className="text-[10px] md:text-sm lg:text-base">设置</span>
           </button>
         </div>
       </div>

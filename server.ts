@@ -14,14 +14,15 @@ app.use(express.json());
 
 // API routes
 app.post("/api/generate-itinerary", async (req, res) => {
-  const { prompt, modelType = "qwen" } = req.body;
+  const { prompt, modelType = "qwen", apiKey } = req.body;
 
   try {
     let content;
     if (modelType === "qwen") {
-      content = await generateItineraryQwen(prompt);
+      content = await generateItineraryQwen(prompt, apiKey);
+      console.log('/api/generate-itinerary:', content)
     } else {
-      content = await generateItineraryDoubao(prompt);
+      content = await generateItineraryDoubao(prompt, apiKey);
     }
     res.json({ text: content });
   } catch (error: any) {
@@ -31,14 +32,14 @@ app.post("/api/generate-itinerary", async (req, res) => {
 });
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, systemInstruction, modelType = "qwen" } = req.body;
+  const { message, history, systemInstruction, modelType = "qwen", apiKey } = req.body;
 
   try {
     let content;
     if (modelType === "qwen") {
-      content = await chatQwen(message, history, systemInstruction);
+      content = await chatQwen(message, history, systemInstruction, apiKey);
     } else {
-      content = await chatDoubao(message, history, systemInstruction);
+      content = await chatDoubao(message, history, systemInstruction, apiKey);
     }
     res.json({ text: content });
   } catch (error: any) {

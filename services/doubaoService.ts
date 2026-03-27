@@ -28,13 +28,21 @@ const SYSTEM_INSTRUCTION = `
 请务必返回合法的 JSON 格式数据。
 `;
 
-export async function generateItineraryDoubao(prompt: string, signal?: AbortSignal) {
+export async function generateItineraryDoubao(prompt: string, apiKey?: string, signal?: AbortSignal) {
   const modelId = process.env.DOUBAO_MODEL_ID;
-  if (!process.env.DOUBAO_API_KEY || !modelId) {
+  const finalApiKey = apiKey || process.env.DOUBAO_API_KEY;
+
+  if (!finalApiKey || !modelId) {
     throw new Error("Doubao API key or Model ID not configured.");
   }
 
-  const completion = await client.chat.completions.create({
+  // Create a temporary client if a custom API key is provided
+  const requestClient = apiKey ? new OpenAI({
+    apiKey: finalApiKey,
+    baseURL: process.env.DOUBAO_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3",
+  }) : client;
+
+  const completion = await requestClient.chat.completions.create({
     model: modelId,
     messages: [
       { role: "system", content: SYSTEM_INSTRUCTION },
@@ -47,11 +55,19 @@ export async function generateItineraryDoubao(prompt: string, signal?: AbortSign
   return completion.choices[0].message.content;
 }
 
-export async function chatDoubao(message: string, history: any[], systemInstruction?: string, signal?: AbortSignal) {
+export async function chatDoubao(message: string, history: any[], systemInstruction?: string, apiKey?: string, signal?: AbortSignal) {
   const modelId = process.env.DOUBAO_MODEL_ID;
-  if (!process.env.DOUBAO_API_KEY || !modelId) {
+  const finalApiKey = apiKey || process.env.DOUBAO_API_KEY;
+
+  if (!finalApiKey || !modelId) {
     throw new Error("Doubao API key or Model ID not configured.");
   }
+
+  // Create a temporary client if a custom API key is provided
+  const requestClient = apiKey ? new OpenAI({
+    apiKey: finalApiKey,
+    baseURL: process.env.DOUBAO_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3",
+  }) : client;
 
   const messages = [
     { role: "system", content: systemInstruction || "你是一个专业的旅游助手。" },
@@ -62,7 +78,7 @@ export async function chatDoubao(message: string, history: any[], systemInstruct
     { role: "user", content: message }
   ];
 
-  const completion = await client.chat.completions.create({
+  const completion = await requestClient.chat.completions.create({
     model: modelId,
     messages: messages as any,
   }, { signal });
