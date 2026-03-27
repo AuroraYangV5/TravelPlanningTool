@@ -22,8 +22,6 @@ interface ItineraryResultProps {
   itinerary: ItineraryData | null;
   destination: string;
   days: number;
-  mapView: 'sketch' | 'real';
-  setMapView: (view: 'sketch' | 'real') => void;
   onRetry: () => void;
   onReset: () => void;
   onSave: () => void;
@@ -36,8 +34,6 @@ export const ItineraryResult = ({
   itinerary,
   destination,
   days,
-  mapView,
-  setMapView,
   onRetry,
   onReset,
   onSave,
@@ -120,7 +116,7 @@ export const ItineraryResult = ({
     >
       <header className="relative">
         <div className="absolute -top-12 -left-12 w-64 h-64 bg-emerald-100/50 rounded-full blur-3xl -z-10" />
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
+        <div className="flex flex-col md:flex-col justify-between gap-4 mb-4">
           <div>
             <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase tracking-widest block w-fit mb-4">
               定制攻略已生成
@@ -165,8 +161,6 @@ export const ItineraryResult = ({
       {/* Map Section */}
       <MapSection 
         itinerary={itinerary} 
-        mapView={mapView} 
-        setMapView={setMapView} 
       />
 
       {/* Accommodation Section */}

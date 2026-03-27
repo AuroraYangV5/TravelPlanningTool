@@ -83,12 +83,12 @@ export const SavedItineraries = ({
                 </div>
               </div>
               <div className="flex gap-2 overflow-hidden">
-                {(saved.routePoints || []).slice(0, 4).map((p, i) => (
+                {(saved.cities?.[0]?.routePoints || []).slice(0, 4).map((p, i) => (
                   <span key={i} className="text-[10px] bg-stone-50 px-2 py-1 rounded-md text-stone-500 whitespace-nowrap">
                     {p.label}
                   </span>
                 ))}
-                {saved.routePoints.length > 4 && <span className="text-[10px] text-stone-300">...</span>}
+                {(saved.cities?.[0]?.routePoints?.length || 0) > 4 && <span className="text-[10px] text-stone-300">...</span>}
               </div>
             </div>
           ))}

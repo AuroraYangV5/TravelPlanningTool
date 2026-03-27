@@ -1,51 +1,53 @@
+import axios from "axios";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const QWEN_API_KEY = process.env.QWEN_API_KEY;
-const QWEN_BASE_URL = process.env.QWEN_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const QWEN_ENDPOINT = QWEN_BASE_URL.endsWith("/completions")
-  ? QWEN_BASE_URL
-  : `${QWEN_BASE_URL.replace(/\/$/, "")}/completions`;
+const QWEN_APP_ID = process.env.QWEN_APP_ID;
 
-const QWEN_MODEL_ID = process.env.QWEN_MODEL_ID || "qwen-max";
-
-const SYSTEM_INSTRUCTION = "你是一个专业的旅游规划师。请务必返回合法的 JSON 格式数据，包含 title, accommodation, nodes, totalBudget, routePoints 字段。";
+const SYSTEM_INSTRUCTION = "你是一个专业的旅游规划师。请务必返回合法的 JSON 格式数据，包含 title, accommodation, nodes, totalBudget, cities 字段。其中 cities 包含 cityName, routePoints (lat, lng, label)。";
 
 export async function generateItineraryQwen(prompt: string, apiKey?: string, signal?: AbortSignal) {
   const finalApiKey = apiKey || QWEN_API_KEY;
   if (!finalApiKey) {
     throw new Error("Qwen API key not configured.");
   }
-
-  const body = {
-    model: QWEN_MODEL_ID,
-    messages: [
-      { role: "system", content: SYSTEM_INSTRUCTION },
-      { role: "user", content: prompt }
-    ],
-    response_format: { type: "json_object" },
-    max_tokens: 8192,
-  };
-
-  const response = await fetch(QWEN_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${finalApiKey}`
-    },
-    body: JSON.stringify(body),
-    signal
-  });
-  console.log('generateItineraryQwen:', response)
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || `Qwen API error: ${response.statusText}`);
+  if (!QWEN_APP_ID) {
+    throw new Error("Qwen App ID not configured.");
   }
 
-  const result = await response.json();
-  return result.choices[0].message.content;
+  const url = `https://dashscope.aliyuncs.com/api/v1/apps/${QWEN_APP_ID}/completion`;
+  
+  const data = {
+    input: {
+      prompt: `${SYSTEM_INSTRUCTION}\n\n用户需求：${prompt}`
+    },
+    parameters: {},
+    debug: {}
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        'Authorization': `Bearer ${finalApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      signal
+    });
+
+    if (response.status === 200) {
+      return response.data.output.text;
+    } else {
+      throw new Error(`Qwen API error: status=${response.status}, message=${response.data.message}`);
+    }
+  } catch (error: any) {
+    if (axios.isCancel(error)) {
+      throw error;
+    }
+    const errorMessage = error.response?.data?.message || error.message;
+    throw new Error(`Error calling Qwen DashScope: ${errorMessage}`);
+  }
 }
 
 export async function chatQwen(message: string, history: any[], systemInstruction?: string, apiKey?: string, signal?: AbortSignal) {
@@ -53,36 +55,44 @@ export async function chatQwen(message: string, history: any[], systemInstructio
   if (!finalApiKey) {
     throw new Error("Qwen API key not configured.");
   }
-
-  const messages = [
-    { role: "system", content: systemInstruction || "你是一个专业的旅游助手。" },
-    ...history.map((h: any) => ({
-      role: h.role === "user" ? "user" : "assistant",
-      content: h.text
-    })),
-    { role: "user", content: message }
-  ];
-
-  const body = {
-    model: QWEN_MODEL_ID,
-    messages: messages,
-  };
-
-  const response = await fetch(QWEN_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${finalApiKey}`
-    },
-    body: JSON.stringify(body),
-    signal
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || `Qwen API error: ${response.statusText}`);
+  if (!QWEN_APP_ID) {
+    throw new Error("Qwen App ID not configured.");
   }
 
-  const result = await response.json();
-  return result.choices[0].message.content;
+  const url = `https://dashscope.aliyuncs.com/api/v1/apps/${QWEN_APP_ID}/completion`;
+
+  // DashScope App API doesn't support chat history in the same way as Chat Completions.
+  // We'll prepend the history to the prompt.
+  const historyText = history.map((h: any) => `${h.role === "user" ? "用户" : "助手"}: ${h.text}`).join("\n");
+  const fullPrompt = `${systemInstruction || "你是一个专业的旅游助手。"}\n\n${historyText}\n用户: ${message}`;
+
+  const data = {
+    input: {
+      prompt: fullPrompt
+    },
+    parameters: {},
+    debug: {}
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        'Authorization': `Bearer ${finalApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      signal
+    });
+
+    if (response.status === 200) {
+      return response.data.output.text;
+    } else {
+      throw new Error(`Qwen API error: status=${response.status}, message=${response.data.message}`);
+    }
+  } catch (error: any) {
+    if (axios.isCancel(error)) {
+      throw error;
+    }
+    const errorMessage = error.response?.data?.message || error.message;
+    throw new Error(`Error calling Qwen DashScope: ${errorMessage}`);
+  }
 }

@@ -9,12 +9,23 @@ export interface ItineraryNode {
   description: string;
 }
 
+export interface MapPoint {
+  lat: number;
+  lng: number;
+  label: string;
+}
+
+export interface CityData {
+  cityName: string;
+  routePoints: MapPoint[];
+}
+
 export interface ItineraryData {
   title: string;
   accommodation: { name: string; area: string; price: string };
   nodes: ItineraryNode[];
   totalBudget: number;
-  routePoints: { lat: number; lng: number; label: string }[];
+  cities: CityData[];
 }
 
 export interface ChatMessage {

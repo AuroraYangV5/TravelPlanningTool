@@ -21,7 +21,6 @@ export default function App() {
   const [budget, setBudget] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [itinerary, setItinerary] = useState<ItineraryData | null>(null);
-  const [mapView, setMapView] = useState<'sketch' | 'real'>('sketch');
   const [error, setError] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [savedItineraries, setSavedItineraries] = useState<ItineraryData[]>([]);
@@ -140,8 +139,8 @@ export default function App() {
                 processedText += '],';
               }
             }
-            if (!processedText.includes('"routePoints": [')) {
-              processedText += '"routePoints": []';
+            if (!processedText.includes('"cities": [')) {
+              processedText += '"cities": []';
             } else if (!processedText.endsWith(']')) {
                processedText += ']';
             }
@@ -269,8 +268,6 @@ export default function App() {
                     itinerary={itinerary}
                     destination={destination}
                     days={days}
-                    mapView={mapView}
-                    setMapView={setMapView}
                     onRetry={generateItinerary}
                     onReset={() => setStep(1)}
                     onSave={saveCurrentItinerary}

@@ -22,10 +22,13 @@ const SYSTEM_INSTRUCTION = `
 - accommodation: { name: 酒店名称, area: 所在区域, price: 大概价格 }
 - nodes: 数组，每个对象包含 { day: 天数, time: 时间点, activity: 活动名称, location: 地点, transport: 交通工具, dining: { restaurant: 餐厅名, dishes: [推荐菜1, 推荐菜2] }, cost: 预估开销(数字), description: 极简描述(20字以内) }
 - totalBudget: 总预估开销
-- routePoints: 数组，包含 { lat: 纬度(数字), lng: 经度(数字), label: 地点 }。
+- cities: 数组，每个城市包含 { cityName: 城市名, routePoints: [{ lat: 纬度, lng: 经度, label: 地点 }] }。
 
-注意：请务必确保返回完整的 JSON 结构。如果天数较多，请通过压缩描述长度来确保不被截断。
-请务必返回合法的 JSON 格式数据。
+注意：
+1. 请务必确保返回完整的 JSON 结构。
+2. 每个城市必须包含至少 3-5 个 routePoints。
+3. 坐标必须真实准确。
+4. 请务必返回合法的 JSON 格式数据。
 `;
 
 export async function generateItineraryDoubao(prompt: string, apiKey?: string, signal?: AbortSignal) {
