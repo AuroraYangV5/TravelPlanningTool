@@ -34,10 +34,13 @@ export const Sidebar = ({
     <nav className="w-full md:w-20 lg:w-64 bg-white border-b md:border-b-0 md:border-r border-stone-200 flex flex-col z-20 shrink-0">
       <div className="p-4 md:p-6 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 md:w-10 md:h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
-            <Compass size={20} className="md:size-6" />
+          <div className="w-10 h-10 bg-[#009966] rounded-xl flex items-center justify-center shadow-lg shadow-stone-200 overflow-hidden transition-transform hover:scale-110 duration-300">
+            <img src="/logo.svg" alt="Logo" className="w-7 h-7" referrerPolicy="no-referrer" />
           </div>
-          <span className="font-serif text-lg md:text-xl font-bold text-emerald-900 tracking-tight">你的旅游助手</span>
+          <div className="flex flex-col">
+            <span className="font-serif text-lg md:text-xl font-bold text-stone-900 tracking-tight leading-none">旅游助手</span>
+            <span className="text-[10px] text-stone-400 font-bold uppercase tracking-[0.2em] mt-1">Travel AI</span>
+          </div>
         </div>
 
         {/* Mobile Model Switcher */}
