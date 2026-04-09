@@ -38,7 +38,7 @@ export const Sidebar = ({
             <img src="/logo.svg" alt="Logo" className="w-7 h-7" referrerPolicy="no-referrer" />
           </div>
           <div className="flex flex-col">
-            <span className="font-serif text-lg md:text-xl font-bold text-stone-900 tracking-tight leading-none">旅游助手</span>
+            <span className="font-serif text-lg md:text-xl font-bold text-stone-900 tracking-tight leading-none">旅行助手</span>
             <span className="text-[10px] text-stone-400 font-bold uppercase tracking-[0.2em] mt-1">Travel AI</span>
           </div>
         </div>

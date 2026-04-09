@@ -1,5 +1,5 @@
 {
-  "name": "Customized Travel Planner Assistant",
+  "name": "旅行计划助手",
   "description": "A personalized travel planning tool that creates detailed itineraries based on your destination, purpose, duration, and budget. Features AI-powered suggestions and route visualization.",
   "requestFramePermissions": [
     "geolocation"
